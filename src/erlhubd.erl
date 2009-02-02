@@ -1,5 +1,5 @@
 -module(erlhubd).
--export([start/1]).
+-export([start/0]).
 
-start(_) ->
+start() ->
 	ok.
