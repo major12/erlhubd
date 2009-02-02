@@ -1,3 +1,8 @@
 #!/bin/sh
 cd ebin
-erl -run erlhubd -noshell
+if [ "x$1" = "x-d" ]
+	then 
+		erl -run erlhubd
+	else
+		erl -run erlhubd -noshell
+fi		
