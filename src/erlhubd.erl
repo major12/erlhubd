@@ -2,7 +2,8 @@
 -export([start/0, loop/1, sender/1]).
 
 start() ->
-	tcp_server:start(?MODULE, 4111, {?MODULE, loop}).
+	tcp_server:start(?MODULE, 4111, {?MODULE, loop}),
+	io:format("[S] Server started~n").
 
 loop(Socket) ->
 	Sender = spawn_link(?MODULE, sender, [self()]),
