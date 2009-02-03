@@ -16,8 +16,15 @@ receiver(Socket, Client) ->
 receiver(Socket, Client, Buffer) ->
 	{ok, Data}  = gen_tcp:recv(Socket, 0),
 	{Msg, Next} = split_message(Data),
-	Client ! {self(), <<Buffer/binary, Msg/binary>>},
-	receiver(Socket, Client, Next).
+	DataSize    = size(Data),
+	SplitSize   = size(Msg) + size(Next),
+	if
+		DataSize =:= SplitSize + 1 ->
+			Client ! {self(), <<Buffer/binary, Msg/binary>>},
+			receiver(Socket, Client, Next);
+		true ->
+			receiver(Socket, Client, <<Buffer/binary, Msg/binary>>)
+	end.
 
 sender(Receiver) ->
 	receive
