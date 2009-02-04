@@ -15,16 +15,20 @@ receiver(Socket, Client) ->
 	receiver(Socket, Client, <<>>).
 
 receiver(Socket, Client, Buffer) ->
-	{ok, Data}  = gen_tcp:recv(Socket, 0),
-	{Msg, Next} = split_message(Data),
-	DataSize    = size(Data),
-	SplitSize   = size(Msg) + size(Next),
-	if
-		DataSize =:= SplitSize + 1 ->
-			Client ! {self(), <<Buffer/binary, Msg/binary>>},
-			receiver(Socket, Client, Next);
-		true ->
-			receiver(Socket, Client, <<Buffer/binary, Msg/binary>>)
+	case gen_tcp:recv(Socket, 0) of
+		{ok, Data} ->
+			{Msg, Next} = split_message(Data),
+			DataSize    = size(Data),
+			SplitSize   = size(Msg) + size(Next),
+			if
+				DataSize =:= SplitSize + 1 ->
+					Client ! {self(), <<Buffer/binary, Msg/binary>>},
+					receiver(Socket, Client, Next);
+				true ->
+					receiver(Socket, Client, <<Buffer/binary, Msg/binary>>)
+			end;
+		Error ->
+			io:format("[M] Error: ~p~n", [Error])
 	end.
 
 sender(Receiver) ->
@@ -40,7 +44,7 @@ sender(Socket, Client) ->
 	receive
 		{Client, Message} ->
 			io:format("[S] Sending message: ~p~n", [Message]),
-			gen_tcp:send(Socket, Message),
+			gen_tcp:send(Socket, <<Message/binary, $\n>>),
 			sender(Socket, Client);
 		Any ->
 			io:format("[S] Unknown message: ~p~n", [Any]),
