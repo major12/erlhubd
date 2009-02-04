@@ -2,6 +2,7 @@
 -export([start/2]).
 
 start(Receiver, Sender) ->
+	io:format("[C] Client connected~n"),
 	loop(Receiver, Sender).
 
 loop(Receiver, Sender) ->
