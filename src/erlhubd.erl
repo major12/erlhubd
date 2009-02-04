@@ -3,7 +3,7 @@
 
 start() ->
 	tcp_server:start(?MODULE, 4111, {?MODULE, loop}),
-	io:format("[S] Server started~n").
+	io:format("[M] Server started~n").
 
 loop(Socket) ->
 	Sender = spawn_link(?MODULE, sender, [self()]),
