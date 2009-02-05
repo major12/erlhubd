@@ -53,7 +53,7 @@ sender(Socket, Client) ->
 	receive
 		{Client, Message} ->
 			io:format("[S] Sending message: ~p~n", [Message]),
-			gen_tcp:send(Socket, <<Message/binary, $\n>>),
+			gen_tcp:send(Socket, Message),
 			sender(Socket, Client);
 		Any ->
 			io:format("[S] Unknown message: ~p~n", [Any]),
