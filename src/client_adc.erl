@@ -9,11 +9,11 @@ start(Socket, Buffer) ->
 
 loop(Receiver, Sender) ->
     receive
-    	{Receiver, Message} ->
-    		io:format("[AC] Message from receiver: ~p~n", [Message]),
-    		Sender ! {self(), Message},
-    		loop(Receiver, Sender);
-    	Any ->
-    		io:format("[AC] Unknown message: ~p~n", [Any]),
-    		loop(Receiver, Sender)
+        {Receiver, Message} ->
+        	io:format("[AC] Message from receiver: ~p~n", [Message]),
+        	Sender ! {self(), Message},
+        	loop(Receiver, Sender);
+        Any ->
+        	io:format("[AC] Unknown message: ~p~n", [Any]),
+        	loop(Receiver, Sender)
     end.
