@@ -10,10 +10,10 @@ start(Socket, Buffer) ->
 loop(Receiver, Sender) ->
     receive
         {Receiver, Message} ->
-        	io:format("[NC] Message from receiver: ~p~n", [Message]),
-        	Sender ! {self(), Message},
-        	loop(Receiver, Sender);
+            io:format("[NC] Message from receiver: ~p~n", [Message]),
+            Sender ! {self(), Message},
+            loop(Receiver, Sender);
         Any ->
-        	io:format("[NC] Unknown message: ~p~n", [Any]),
-        	loop(Receiver, Sender)
+            io:format("[NC] Unknown message: ~p~n", [Any]),
+            loop(Receiver, Sender)
     end.
