@@ -8,16 +8,19 @@ start(Socket, Buffer) ->
     Lock = create_lock(),
     put(lock, Lock),
     Key = create_key(),
-    put(key, Key),
+    put(skey, Key),
     Sender ! {self(), packet('$Lock', {Lock, Key})},
     loop(Receiver, Sender).
 
 loop(Receiver, Sender) ->
     receive
         {Receiver, <<"$Key ", Rest/binary>>} ->
-            io:format("[NC] Got key~n"),
-            handle_key(Rest),
+            io:format("[NC] Got key: "),
+            ok = handle_key(Rest),
             loop(Receiver, Sender);
+        {Receiver, <<"$ValidateNick ", Rest/binary>>} ->
+            io:format("[NC] Got nick: "),
+            handle_nick(Receiver, Sender, Rest);
         {Receiver, Message} ->
             io:format("[NC] Unhandled message: ~s~n", [binary_to_list(Message)]),
             loop(Receiver, Sender);
@@ -38,7 +41,22 @@ create_bin(Size, Binary) ->
     create_bin(Size - 1, <<Binary/binary, (97 + random:uniform(25)):8>>).
 
 packet('$Lock', {Lock, Key}) ->
-    <<"$Lock ", Lock/bytes, " Pk=", Key/bytes, "|">>.
+    <<"$Lock ", Lock/bytes, " Pk=", Key/bytes, "|">>;
+packet('$ValidateDenide', Nick) ->
+    <<"$ValidateDenide ", Nick/bytes, "|">>;
+packet('$Hello', Nick) ->
+    <<"$Hello ", Nick/bytes, "|">>.
 
 handle_key(Data) ->
+    put(ckey, Data),
+    io:format("~p~n", [Data]),
     ok.
+
+handle_nick(_, S, <<>>) ->
+    S ! {self(), packet('$ValidateDenide', <<>>)},
+    S ! {self(), die},
+    {error, bad_nick};
+handle_nick(R, S, D) ->
+    put(nick, D),
+    S ! {self(), packet('$Hello', D)},
+    loop(R, S).
