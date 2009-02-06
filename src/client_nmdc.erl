@@ -14,9 +14,12 @@ start(Socket, Buffer) ->
 
 loop(Receiver, Sender) ->
     receive
+        {Receiver, <<"$Key ", Rest/binary>>} ->
+            io:format("[NC] Got key~n"),
+            handle_key(Rest),
+            loop(Receiver, Sender);
         {Receiver, Message} ->
-            io:format("[NC] Message from receiver: ~s~n", [binary_to_list(Message)]),
-            Sender ! {self(), Message},
+            io:format("[NC] Unhandled message: ~s~n", [binary_to_list(Message)]),
             loop(Receiver, Sender);
         Any ->
             io:format("[NC] Unknown message: ~p~n", [Any]),
@@ -36,3 +39,6 @@ create_bin(Size, Binary) ->
 
 packet('$Lock', {Lock, Key}) ->
     <<"$Lock ", Lock/bytes, " Pk=", Key/bytes, "|">>.
+
+handle_key(Data) ->
+    ok.
