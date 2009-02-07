@@ -2,3 +2,4 @@ ebin
 nbproject
 .settings
 .project
+erl_crash.dump
