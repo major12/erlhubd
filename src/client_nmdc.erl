@@ -19,7 +19,7 @@ loop(Receiver, Sender) ->
             ok = handle_key(Rest),
             loop(Receiver, Sender);
         {Receiver, <<"$ValidateNick ", Rest/binary>>} ->
-            io:format("[NC] Got nick: "),
+            io:format("[NC] Got nick: ~p~n", [Rest]),
             handle_nick(Receiver, Sender, Rest);
         {Receiver, Message} ->
             io:format("[NC] Unhandled message: ~s~n", [binary_to_list(Message)]),
@@ -53,10 +53,23 @@ handle_key(Data) ->
     ok.
 
 handle_nick(_, S, <<>>) ->
-    S ! {self(), packet('$ValidateDenide', <<>>)},
-    S ! {self(), die},
-    {error, bad_nick};
+    dead_end(S, packet('$ValidateDenide', <<>>), "Empty nick");
 handle_nick(R, S, D) ->
-    put(nick, D),
-    S ! {self(), packet('$Hello', D)},
-    loop(R, S).
+    case catch clients_pool:add(self(), D) of
+        true ->
+            put(nick, D),
+            io:format("[NC] Nick accepted~n"),
+            S ! {self(), packet('$Hello', D)},
+            loop(R, S);
+        false ->
+            dead_end(S, packet('$ValidateDenide', D), "Duplicate nick");
+        Error ->
+            io:format("[NC] Error: ~p~n", [Error]),
+            dead_end(S, packet('$ValidateDenide', D), "Unknown reason")
+    end.
+
+dead_end(Sender, Packet, Message) ->
+    io:format("[NC] ~s~n", [Message]),
+    Sender ! {self(), Packet},
+    Sender ! {self(), die},
+    dead.

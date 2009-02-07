@@ -1,5 +1,5 @@
--module(pool).
--export([start/0]).
+-module(clients_pool).
+-export([start/0, init/0, add/2]).
 
 -record(client, {pid, nick}).
 
@@ -9,7 +9,7 @@ start() ->
     {ok, Pid}.
 
 init() ->
-    ets:new(pool, [named_table, {keypos, 3}, protected]),
+    ets:new(?MODULE, [named_table, {keypos, 3}, public, set]),
     loop().
 
 loop() ->
@@ -22,3 +22,6 @@ loop() ->
                           ok
                       end, ok, pool)
     end.
+
+add(Pid, Nick) ->
+    ets:insert_new(?MODULE, #client{pid=Pid, nick=Nick}).

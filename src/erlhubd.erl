@@ -2,7 +2,7 @@
 -export([start/0, upgrade/0, loop/1]).
 
 start() ->
-    pool:start(),
+    clients_pool:start(),
     case tcp_server:start(?MODULE, 4111, {?MODULE, loop}) of
         {ok, _Pid} ->
             io:format("[M] Server started~n");
@@ -22,10 +22,10 @@ upgrade() ->
     code:load_file(client_adc),
     code:purge(client_nmdc),
     code:load_file(client_nmdc),
+    code:purge(clients_pool),
+    code:load_file(clients_pool),
     code:purge(erlhubd),
     code:load_file(erlhubd),
-    code:purge(pool),
-    code:load_file(pool),
     code:purge(tcp_server),
     code:load_file(tcp_server),
     ok.
