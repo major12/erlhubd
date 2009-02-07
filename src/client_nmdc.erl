@@ -14,20 +14,30 @@ start(Socket, Buffer) ->
 
 loop(Receiver, Sender) ->
     receive
-        {Receiver, <<"$Key ", Rest/binary>>} ->
-            io:format("[NC] Got key: "),
-            ok = handle_key(Rest),
-            loop(Receiver, Sender);
-        {Receiver, <<"$ValidateNick ", Rest/binary>>} ->
-            io:format("[NC] Got nick: ~p~n", [Rest]),
-            handle_nick(Receiver, Sender, Rest);
         {Receiver, Message} ->
-            io:format("[NC] Unhandled message: ~s~n", [binary_to_list(Message)]),
-            loop(Receiver, Sender);
+            process(Receiver, Sender, Message);
         Any ->
             io:format("[NC] Unknown message: ~p~n", [Any]),
             loop(Receiver, Sender)
     end.
+
+process(Receiver, Sender, Data) ->
+    parse(Receiver, Sender, [], Data).
+
+parse(Receiver, Sender, Opcode, <<>>) ->
+    handle(Receiver, Sender, list_to_atom(lists:reverse(Opcode)), <<>>);
+parse(Receiver, Sender, Opcode, <<" ", Data/binary>>) ->
+    handle(Receiver, Sender, list_to_atom(lists:reverse(Opcode)), Data);
+parse(Receiver, Sender, Opcode, <<B:8, Data/binary>>) ->
+    parse(Receiver, Sender, [B|Opcode], Data).
+
+handle(R, S, '$Key', Rest) ->
+    handle_key(R, S, Rest);
+handle(R, S, '$ValidateNick', Rest) ->
+    handle_nick(R, S, Rest);
+handle(R, S, O, D) ->
+    io:format("[NC] Unhandled message ~s ~s~n", [O, binary_to_list(D)]),
+    loop(R, S).
 
 create_lock() ->
     create_bin(80 + random:uniform(54), <<>>).
@@ -47,10 +57,10 @@ packet('$ValidateDenide', Nick) ->
 packet('$Hello', Nick) ->
     <<"$Hello ", Nick/bytes, "|">>.
 
-handle_key(Data) ->
+handle_key(R, S, Data) ->
     put(ckey, Data),
-    io:format("~p~n", [Data]),
-    ok.
+    io:format("[NC] Got key: ~p~n", [Data]),
+    loop(R, S).
 
 handle_nick(_, S, <<>>) ->
     dead_end(S, packet('$ValidateDenide', <<>>), "Empty nick");
