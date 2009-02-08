@@ -26,6 +26,8 @@ upgrade() ->
     code:load_file(clients_pool),
     code:purge(erlhubd),
     code:load_file(erlhubd),
+    code:purge(packets),
+    code:load_file(packets),
     code:purge(tcp_server),
     code:load_file(tcp_server),
     ok.
