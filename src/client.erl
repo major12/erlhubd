@@ -19,6 +19,8 @@ sender(Socket, Client) ->
         {Client, die} ->
             gen_tcp:close(Socket),
             {ok, dead};
+        {Client, skip} ->
+            sender(Socket, Client);
         {Client, Message} ->
             io:format("[ C] Sending message: ~p~n", [Message]),
             gen_tcp:send(Socket, Message),
