@@ -4,3 +4,4 @@
 {'src/client_nmdc.erl', [{outdir, "ebin"}]}.
 {'src/client_adc.erl', [{outdir, "ebin"}]}.
 {'src/clients_pool.erl', [{outdir, "ebin"}]}.
+{'src/packets.erl', [{outdir, "ebin"}]}.
