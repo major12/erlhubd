@@ -26,9 +26,13 @@ handle_cast({accepted, _Pid}, State=#server_state{}) ->
     {noreply, accept(State)}.
 
 accept_loop({Server, LSocket, {M, F}}) ->
-    {ok, Socket} = gen_tcp:accept(LSocket),
-    gen_server:cast(Server, {accepted, self()}),
-    M:F(Socket).
+    case gen_tcp:accept(LSocket) of
+        {ok, Socket} ->
+            gen_server:cast(Server, {accepted, self()}),
+            M:F(Socket);
+        {error, Reason} ->
+            io:format("[M] Couldn't accept connection: ~p~n", [Reason])
+    end.
    
 accept(State = #server_state{lsocket=LSocket, loop = Loop}) ->
     proc_lib:spawn(?MODULE, accept_loop, [{self(), LSocket, Loop}]),
