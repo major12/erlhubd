@@ -6,13 +6,9 @@ start(Socket) ->
     guess_protocol(Socket).
 
 receiver(Socket, Client, Splitter, Buffer) ->
-    case gen_tcp:recv(Socket, 0) of
-        {ok, Data} ->
-            Next = send_messages(Client, <<Buffer/binary, Data/binary>>, Splitter),
-            receiver(Socket, Client, Splitter, Next);
-        Error ->
-            io:format("[ C] Receiver error: ~p~n", [Error])
-    end.
+    {ok, Data} = gen_tcp:recv(Socket, 0),
+    Next = send_messages(Client, <<Buffer/binary, Data/binary>>, Splitter),
+    receiver(Socket, Client, Splitter, Next).
 
 sender(Socket, Client) ->
     receive

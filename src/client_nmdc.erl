@@ -3,6 +3,7 @@
 
 start(Socket, Buffer) ->
     io:format("[NC] NMDC initializing~n"),
+    process_flag(trap_exit, true),
     Receiver = spawn_link(client, receiver, [Socket, self(), $|, Buffer]),
     Sender = spawn_link(client, sender, [Socket, self()]),
     Lock = create_lock(),
@@ -37,12 +38,12 @@ handle(R, S, '$Key', Rest) ->
 handle(R, S, '$ValidateNick', Rest) ->
     handle_nick(R, S, Rest);
 handle(R, S, '$Version', Rest) ->
-    io:format("[NC] Got version: ~s~n", [Rest]),
     put(version, Rest),
     loop(R, S);
 handle(R, S, '$GetNickList', _) ->
     io:format("[NC] Nick list requested~n"),
-    case catch clients_pool:foreach(fun(E) -> S ! {self(), packets:my_info(E)} end) of
+    Self = self(),
+    case catch clients_pool:foreach(fun(E) -> S ! {Self, packets:my_info(E)} end) of
         ok ->
             loop(R, S);
         Error ->
