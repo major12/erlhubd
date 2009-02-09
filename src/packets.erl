@@ -7,9 +7,7 @@ lock(Lock, Key) ->
     <<"$Lock ", Lock/bytes, " Pk=", Key/bytes, "|">>.
 
 validate_denide(Nick) ->
-    io:format("denide ~p~n", [Nick]),
     NickBin = list_to_binary(Nick),
-    io:format("benibe ~p~n", [NickBin]),
     <<"$ValidateDenide ", NickBin/binary, "|">>.
 
 hello(Nick) ->
