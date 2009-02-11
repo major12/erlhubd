@@ -20,9 +20,6 @@ init() ->
 
 loop() ->
     receive
-        status ->
-            io:format("[CP] Ets: ~p~n", [ets:info(?MODULE)]),
-            loop();
         change_code ->
             ?MODULE:loop();
         die ->
