@@ -37,7 +37,7 @@ loop() ->
             From ! {self(), add, Reply},
             loop();
         {From, foreach, Fun} ->
-            Reply = ets:foldl(fun(E, ok) -> Fun(E), ok end, ok, clients_pool),
+            Reply = ets:foldl(fun(E, ok) -> Fun(E), ok end, ok, ?MODULE),
             From ! {self(), foreach, Reply},
             loop();
         {From, update, {Nick, Field, Value}} ->
@@ -46,7 +46,7 @@ loop() ->
                     Reply = if
                         C#client.pid =:= From ->
                             Pos = index(Field, record_info(fields, client)) + 1,
-                            ets:update_element(clients_pool, Nick, {Pos, Value}),
+                            ets:update_element(?MODULE, Nick, {Pos, Value}),
                             ok;
                         true ->
                             {error, no_access}
@@ -59,7 +59,7 @@ loop() ->
             end,
             loop();
         {From, delete, Nick} ->
-            Reply = ets:delete(clients_pool, Nick),
+            Reply = ets:delete(?MODULE, Nick),
             From ! {self(), delete, Reply},
             loop();
         {'EXIT', Pid, Reason} ->
