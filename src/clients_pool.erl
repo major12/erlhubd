@@ -37,7 +37,7 @@ loop() ->
             From ! {self(), add, Reply},
             loop();
         {From, foreach, Fun} ->
-            Reply = ets:foldl(fun(E, ok) -> Fun(E), ok end, ok, ?MODULE),
+            Reply = ets:foldl(fun(E, ok) -> Fun(E) end, ok, ?MODULE),
             From ! {self(), foreach, Reply},
             loop();
         {From, update, {Nick, Field, Value}} ->
