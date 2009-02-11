@@ -19,3 +19,7 @@ my_info(#client{my_info = undefined}) ->
 my_info(#client{nick = Nick, my_info = Info}) ->
     NickBin = list_to_binary(Nick),
     <<"$MyINFO $ALL ", NickBin/binary, " ", Info/bytes, "|">>.
+
+my_info(Nick, Info) ->
+    NickBin = list_to_binary(Nick),
+    <<"$MyINFO $ALL ", NickBin/binary, " ", Info/bytes, "|">>.

@@ -46,24 +46,17 @@ handle(R, S, '$Version', Rest) ->
 handle(R, S, '$GetNickList', _) ->
     io:format("[NC] Nick list requested~n"),
     Self = self(),
-    case catch clients_pool:foreach(fun(E) -> S ! {Self, packets:my_info(E)} end) of
-        ok ->
-            loop(R, S);
-        Error ->
-            io:format("[NC] Nick list generation error: ~p~n", [Error]),
-            dead_end(S)
-    end;
+    ok = clients_pool:foreach(fun(E) -> S ! {Self, packets:my_info(E)}, ok end),
+    loop(R, S);
 handle(R, S, '$MyINFO', Data) ->
     Nick = get(nick),
     NickBin = list_to_binary(Nick),
     Size = size(NickBin),
     <<"$ALL ", NickBin:Size/bytes, " ", MyInfo/bytes>> = Data,
-    io:format("[NC] MyINFO: ~s~n", [MyInfo]),
     put(my_info, MyInfo),
-    Update = (catch clients_pool:update(Nick, my_info, MyInfo)),
-    io:format("[NC] Pool updated: ~p~n", [Update]),
-    ok = clients_pool:broadcast({packet, Data}),
-    io:format("[NC] Broadcast succesfull~n"),
+    ok = clients_pool:update(Nick, my_info, MyInfo),
+    ok = clients_pool:broadcast({packet, packets:my_info(Nick, MyInfo)}),
+    io:format("[NC] MyINFO: ~s~n", [MyInfo]),
     handle_my_info(R, S, get(state));
 handle(R, S, O, D) ->
     io:format("[NC] Unhandled message ~s ~s~n", [O, binary_to_list(D)]),
@@ -101,11 +94,6 @@ handle_my_info(R, S, initialized) ->
     loop(R, S);
 handle_my_info(R, S, _) ->
     loop(R, S).
-
-dead_end(Sender) ->
-    clients_pool:delete(get(nick)),
-    Sender ! {self(), die},
-    dead.
 
 dead_end(Sender, Packet, Message) ->
     clients_pool:delete(get(nick)),
