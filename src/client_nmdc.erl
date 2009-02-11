@@ -91,6 +91,7 @@ handle_nick(R, S, NickBin) ->
     end.
 
 handle_my_info(R, S, initialized) ->
+    S ! {self(), packets:hub_name()},
     loop(R, S);
 handle_my_info(R, S, _) ->
     loop(R, S).

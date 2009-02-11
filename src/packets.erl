@@ -23,3 +23,6 @@ my_info(#client{nick = Nick, my_info = Info}) ->
 my_info(Nick, Info) ->
     NickBin = list_to_binary(Nick),
     <<"$MyINFO $ALL ", NickBin/binary, " ", Info/bytes, "|">>.
+
+hub_name() ->
+    <<"$HubName Test - Topic|">>.
