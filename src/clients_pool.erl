@@ -53,8 +53,9 @@ loop() ->
                     end,
                     From ! {self(), update, Reply},
                     loop();
-                Else ->
-                    From ! {self(), update, {error, not_found}}
+                _ ->
+                    From ! {self(), update, {error, not_found}},
+                    loop()
             end,
             loop();
         {From, delete, Nick} ->
@@ -62,7 +63,15 @@ loop() ->
             From ! {self(), delete, Reply},
             loop();
         {'EXIT', Pid, Reason} ->
-            io:format("~p died because of ~p~n", [Pid, Reason])
+            case ets:match(?MODULE, {client, Pid, '$1', '_'}) of
+                [[Nick]] ->
+                    ets:delete(?MODULE, Nick),
+                    io:format("~p(~p) died because of ~p~n", [Nick, Pid, Reason]),
+                    loop();
+                _ ->
+                    io:format("~p died because of ~p~n", [Pid, Reason]),
+                    loop()
+            end
     end.
 
 add(Pid, Nick) ->
