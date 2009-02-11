@@ -6,6 +6,7 @@ start(Socket, Buffer) ->
     process_flag(trap_exit, true),
     Receiver = spawn_link(client, receiver, [Socket, self(), $|, Buffer]),
     Sender = spawn_link(client, sender, [Socket, self()]),
+    put(state, initialized),
     Lock = create_lock(),
     put(lock, Lock),
     Key = create_key(),
@@ -15,6 +16,9 @@ start(Socket, Buffer) ->
 
 loop(Receiver, Sender) ->
     receive
+        {packet, Data} ->
+            Sender ! {self(), Data},
+            loop(Receiver, Sender);
         {Receiver, Message} ->
             process(Receiver, Sender, Message);
         Any ->
@@ -51,14 +55,17 @@ handle(R, S, '$GetNickList', _) ->
             dead_end(S)
     end;
 handle(R, S, '$MyINFO', Data) ->
-    Nick = list_to_binary(get(nick)),
-    Size = size(Nick),
-    <<"$ALL ", Nick:Size/bytes, " ", MyInfo/bytes>> = Data,
-    io:format("[NC] MyINFO: ~p~n", [MyInfo]),
+    Nick = get(nick),
+    NickBin = list_to_binary(Nick),
+    Size = size(NickBin),
+    <<"$ALL ", NickBin:Size/bytes, " ", MyInfo/bytes>> = Data,
+    io:format("[NC] MyINFO: ~s~n", [MyInfo]),
     put(my_info, MyInfo),
-    clients_pool:update(Nick, my_info, MyInfo),
-    io:format("[NC] Clients pool updated~n"),
-    loop(R, S);
+    Update = (catch clients_pool:update(Nick, my_info, MyInfo)),
+    io:format("[NC] Pool updated: ~p~n", [Update]),
+    ok = clients_pool:broadcast({packet, Data}),
+    io:format("[NC] Broadcast succesfull~n"),
+    handle_my_info(R, S, get(state));
 handle(R, S, O, D) ->
     io:format("[NC] Unhandled message ~s ~s~n", [O, binary_to_list(D)]),
     loop(R, S).
@@ -90,6 +97,11 @@ handle_nick(R, S, NickBin) ->
             io:format("[NC] Error: ~p~n", [Error]),
             dead_end(S, packets:validate_denide(Nick), "Clients pool failure")
     end.
+
+handle_my_info(R, S, initialized) ->
+    loop(R, S);
+handle_my_info(R, S, _) ->
+    loop(R, S).
 
 dead_end(Sender) ->
     clients_pool:delete(get(nick)),
