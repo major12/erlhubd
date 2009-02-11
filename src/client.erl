@@ -1,7 +1,7 @@
 -module(client).
--export([start/1, receiver/4, sender/2]).
+-export([init/1, receiver/4, sender/2]).
 
-start(Socket) ->
+init(Socket) ->
     io:format("[ C] Client connected~n"),
     guess_protocol(Socket).
 
@@ -40,7 +40,7 @@ send_messages(Client, First, Splitter, <<B:8, Second/binary>>) ->
 guess_protocol(Socket) ->
     case gen_tcp:recv(Socket, 1, 200) of
         {ok, Data} ->
-            client_adc:start(Socket, Data);
+            client_adc:init(Socket, Data);
         _ ->
-            client_nmdc:start(Socket, <<>>)
+            client_nmdc:init(Socket, <<>>)
     end.

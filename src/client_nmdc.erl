@@ -1,7 +1,7 @@
 -module(client_nmdc).
--export([start/2]).
+-export([init/2]).
 
-start(Socket, Buffer) ->
+init(Socket, Buffer) ->
     io:format("[NC] NMDC initializing~n"),
     Receiver = spawn_link(client, receiver, [Socket, self(), $|, Buffer]),
     Sender = spawn_link(client, sender, [Socket, self()]),
