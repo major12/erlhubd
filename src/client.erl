@@ -18,7 +18,7 @@ sender(Socket, Client) ->
         {Client, skip} ->
             sender(Socket, Client);
         {Client, Message} ->
-            io:format("[ C] Sending message: ~p~n", [Message]),
+            io:format("[ C] Sending message: ~s~n", [Message]),
             gen_tcp:send(Socket, Message),
             sender(Socket, Client);
         Any ->
