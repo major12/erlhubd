@@ -66,10 +66,10 @@ loop() ->
             case ets:match(?MODULE, {client, Pid, '$1', '_'}) of
                 [[Nick]] ->
                     ets:delete(?MODULE, Nick),
-                    io:format("~p(~p) died because of ~p~n", [Nick, Pid, Reason]),
+                    io:format("[CP] ~s ~p died: ~p~n", [Nick, Pid, Reason]),
                     loop();
                 _ ->
-                    io:format("~p died because of ~p~n", [Pid, Reason]),
+                    io:format("[CP] ~p died: ~p~n", [Pid, Reason]),
                     loop()
             end
     end.
