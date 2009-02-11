@@ -3,7 +3,6 @@
 
 start(Socket, Buffer) ->
     io:format("[NC] NMDC initializing~n"),
-    process_flag(trap_exit, true),
     Receiver = spawn_link(client, receiver, [Socket, self(), $|, Buffer]),
     Sender = spawn_link(client, sender, [Socket, self()]),
     put(state, initialized),

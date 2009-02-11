@@ -15,6 +15,7 @@ start() ->
     end.
 
 init() ->
+    process_flag(trap_exit, true),
     ets:new(?MODULE, [named_table, {keypos, 3}, private, set]),
     loop().
 
@@ -32,6 +33,7 @@ loop() ->
             loop();
         {From, add, {Pid, Nick}} ->
             Reply = ets:insert_new(?MODULE, #client{pid=Pid, nick=Nick}),
+            if Reply -> link(Pid); true -> ok end,
             From ! {self(), add, Reply},
             loop();
         {From, foreach, Fun} ->
@@ -41,27 +43,26 @@ loop() ->
         {From, update, {Nick, Field, Value}} ->
             case ets:lookup(?MODULE, Nick) of
                 [C] ->
-                    io:format("[CP] Found: ~p~n", [C]),
                     Reply = if
                         C#client.pid =:= From ->
                             Pos = index(Field, record_info(fields, client)) + 1,
                             ets:update_element(clients_pool, Nick, {Pos, Value}),
                             ok;
                         true ->
-                            io:format("[CP] Cannot update user ~p from ~p~n", [C#client.pid, From]),
                             {error, no_access}
                     end,
                     From ! {self(), update, Reply},
                     loop();
                 Else ->
-                    io:format("[CP] ~p not found: ~p~n", [Nick, Else]),
                     From ! {self(), update, {error, not_found}}
             end,
             loop();
         {From, delete, Nick} ->
             Reply = ets:delete(clients_pool, Nick),
             From ! {self(), delete, Reply},
-            loop()
+            loop();
+        {'EXIT', Pid, Reason} ->
+            io:format("~p died because of ~p~n", [Pid, Reason])
     end.
 
 add(Pid, Nick) ->
