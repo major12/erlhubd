@@ -92,6 +92,7 @@ handle_nick(R, S, NickBin) ->
 
 handle_my_info(R, S, initialized) ->
     S ! {self(), packets:hub_name()},
+    S ! {self(), packets:message(bot:client(), bot:greeting())},
     loop(R, S);
 handle_my_info(R, S, _) ->
     loop(R, S).

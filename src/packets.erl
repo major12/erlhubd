@@ -26,3 +26,8 @@ my_info(Nick, Info) ->
 
 hub_name() ->
     <<"$HubName Test - Topic|">>.
+
+message(#client{nick = Nick}, Message) ->
+    NickBin    = list_to_binary(Nick),
+    MessageBin = list_to_binary(Message),
+    <<"<", NickBin/binary, "> ", MessageBin/binary, "|">>.
