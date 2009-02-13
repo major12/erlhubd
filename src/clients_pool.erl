@@ -1,6 +1,7 @@
 -module(clients_pool).
 -export([start/0, init/0,
-         add/2, update/3, foreach/1, delete/1, broadcast/1]).
+         add/2, update/3, delete/1, 
+         broadcast/1, foreach/1, clients/1]).
 
 -include("records.hrl").
 
@@ -62,6 +63,26 @@ loop() ->
             Reply = ets:delete(?MODULE, Nick),
             From ! {self(), delete, Reply},
             loop();
+
+        % TODO: use role weight to select clients
+        {From, clients, all} ->
+            Reply = ets:foldl(fun(E, L) -> [E|L] end, [], ?MODULE),
+            From ! {self(), clients, Reply},
+            loop();
+        {From, clients, Roles} ->
+            Reply = ets:foldl(fun(E, L) ->
+                                  #client{role = Role} = E,
+                                  Member = lists:member(Role, Roles),
+                                  if
+                                      Member ->
+                                          [E|L];
+                                      true ->
+                                          L
+                                  end
+                              end, [], ?MODULE),
+            From ! {self(), clients, Reply},
+            loop();
+        
         {'EXIT', Pid, Reason} ->
             case ets:match(?MODULE, {client, Pid, '$1', '_'}) of
                 [[Nick]] ->
@@ -89,16 +110,6 @@ delete(Nick) ->
 broadcast(Data) ->
     send(broadcast, Data).
 
-index(E, L) ->
-    index(E, L, 1).
-
-index(_, [], _) ->
-    0;
-index(E, [H|_], I) when E =:= H ->
-    I;
-index(E, [_|T], I) ->
-    index(E, T, I+1).
-
 rpc(Action, Params) ->
     Pid = whereis(?MODULE),
     Pid ! {self(), Action, Params},
@@ -110,3 +121,16 @@ send(Action, Params) ->
     Pid = whereis(?MODULE),
     Pid ! {Action, Params},
     ok.
+
+clients(Roles) ->
+    rpc(clients, Roles).
+
+index(E, L) ->
+    index(E, L, 1).
+
+index(_, [], _) ->
+    0;
+index(E, [H|_], I) when E =:= H ->
+    I;
+index(E, [_|T], I) ->
+    index(E, T, I+1).
