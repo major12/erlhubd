@@ -7,9 +7,7 @@ lock(Lock, Key) ->
     <<"$Lock ", Lock/bytes, " Pk=", Key/bytes, "|">>.
 
 validate_denide(Nick) ->
-    io:format("denide ~p~n", [Nick]),
     NickBin = list_to_binary(Nick),
-    io:format("benibe ~p~n", [NickBin]),
     <<"$ValidateDenide ", NickBin/binary, "|">>.
 
 hello(Nick) ->
@@ -21,3 +19,15 @@ my_info(#client{my_info = undefined}) ->
 my_info(#client{nick = Nick, my_info = Info}) ->
     NickBin = list_to_binary(Nick),
     <<"$MyINFO $ALL ", NickBin/binary, " ", Info/bytes, "|">>.
+
+my_info(Nick, Info) ->
+    NickBin = list_to_binary(Nick),
+    <<"$MyINFO $ALL ", NickBin/binary, " ", Info/bytes, "|">>.
+
+hub_name() ->
+    <<"$HubName Test - Topic|">>.
+
+message(#client{nick = Nick}, Message) ->
+    NickBin    = list_to_binary(Nick),
+    MessageBin = list_to_binary(Message),
+    <<"<", NickBin/binary, "> ", MessageBin/binary, "|">>.

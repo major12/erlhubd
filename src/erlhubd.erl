@@ -33,4 +33,4 @@ upgrade() ->
     ok.
 
 loop(Socket) ->
-    client:start(Socket).
+    client:init(Socket).
