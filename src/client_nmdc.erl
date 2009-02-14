@@ -47,11 +47,11 @@ parse_chat(R, S, [], <<>>) ->
     io:format("[parse_chat] Empty message (maybe keepalive). ~n"),
     handle_chat(R, S, [], <<>>);
 parse_chat(R, S, SenderNick, <<>>) ->
-    handle_chat(R, S, SenderNick, <<>>);
+    handle_chat(R, S, lists:reverse(SenderNick), <<>>);
 parse_chat(R, S, SenderNick, <<" ", MessageData/binary>>) ->
-    handle_chat(R, S, SenderNick, MessageData);
+    handle_chat(R, S, lists:reverse(SenderNick), MessageData);
 parse_chat(R, S, SenderNick, <<B:8, MessageData/binary>>) ->
-    parse_chat(R, S, SenderNick ++ [B], MessageData).
+    parse_chat(R, S, [B|SenderNick], MessageData).
 
 % try   parse_chat(R, S, [SenderNick|B], MessageData)
 % 		io:format("~p~n",[SenderNick]) 
