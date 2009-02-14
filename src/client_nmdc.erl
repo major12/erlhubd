@@ -59,6 +59,8 @@ handle(R, S, 'Version', Rest) ->
 handle(R, S, 'GetNickList', _) ->
     io:format("[NC] Nick list requested~n"),
     Self = self(),
+    S ! {self(), packets:op_list(clients_pool:clients([op, chief, admin, master]))},
+    S ! {self(), packets:nick_list(clients_pool:clients(all))},
     ok = clients_pool:foreach(fun(E) -> S ! {Self, packets:my_info(E)}, ok end),
     loop(R, S);
 handle(R, S, 'MyINFO', Data) ->
@@ -103,8 +105,6 @@ handle_nick(R, S, NickBin) ->
 handle_my_info(R, S, initialized) ->
     S ! {self(), packets:hub_name()},
     S ! {self(), packets:message(bot:client(), bot:greeting())},
-    S ! {self(), packets:op_list(clients_pool:clients([op, chief, admin, master]))},
-    S ! {self(), packets:nick_list(clients_pool:clients(all))},
     loop(R, S);
 handle_my_info(R, S, _) ->
     loop(R, S).
