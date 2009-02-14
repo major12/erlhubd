@@ -19,7 +19,6 @@ loop(Receiver, Sender) ->
             Sender ! {self(), Data},
             loop(Receiver, Sender);
         {Receiver, Message} ->
-            io:format("[loop] Message: ~s~n", [binary_to_list(Message)]),
             process(Receiver, Sender, Message);
         Any ->
             io:format("[NC] Unknown message: ~p~n", [Any]),
@@ -27,13 +26,11 @@ loop(Receiver, Sender) ->
     end.
 
 process(Receiver, Sender, <<"$", Data/binary>>) ->
-    io:format("[process] Match control message. ~n"),
     parse(Receiver, Sender, [], Data);
 process(Receiver, Sender, <<"<", Data/binary>>) ->
-    io:format("[process] Match chat message. ~n"),
     parse_chat(Receiver, Sender, [], Data);
-process(Receiver, Sender, _) ->
-    io:format("[process] Bad message. Disconnect? ~n"),
+process(Receiver, Sender, Data) ->
+    io:format("[NC] Bad message: ~n  ~s~nDisconnect? ~n", [Data]),
     loop(Receiver, Sender).
 
 parse(Receiver, Sender, Opcode, <<>>) ->
@@ -44,7 +41,7 @@ parse(Receiver, Sender, Opcode, <<B:8, Data/binary>>) ->
     parse(Receiver, Sender, [B|Opcode], Data).
 
 parse_chat(R, S, _, <<>>) ->
-    io:format("[parse_chat] Bad or empty message. Disconnect?~n"),
+    io:format("[NC] Bad or empty chat message. Disconnect?~n"),
     loop(R, S);
 parse_chat(R, S, Nick, <<"> ", MessageData/binary>>) ->
     handle_chat(R, S, lists:reverse(Nick), MessageData);
@@ -77,10 +74,8 @@ handle(R, S, 'MyINFO', Data) ->
 handle(R, S, O, D) ->
     io:format("[NC] Unhandled control message $~s ~s~n", [O, binary_to_list(D)]),
     loop(R, S).
-% ---------------------------------------------------
 
 handle_chat(R, S, SenderNick, MessageData) ->
-%	need to test is the SenderNick from message = out client nick     
     io:format("[NC] Chat message sender=\"~s\" message=\"~s\"~n",[SenderNick, MessageData]),
     loop(R,S).
 
@@ -96,22 +91,14 @@ create_bin(0, Binary) ->
 create_bin(Size, Binary) ->
     create_bin(Size - 1, <<Binary/binary, (97 + random:uniform(25)):8>>).
 
-handle_nick(_, S, <<>>) ->
-    dead_end(S, packets:validate_denide(<<>>), "Empty nick");
+handle_nick(_, _, <<>>) ->
+    exit(empty_nick);
 handle_nick(R, S, NickBin) ->
     Nick = binary_to_list(NickBin),
-    case catch clients_pool:add(self(), Nick) of
-        true ->
-            put(nick, Nick),
-            io:format("[NC] Nick accepted~n"),
-            S ! {self(), packets:hello(Nick)},
-            loop(R, S);
-        false ->
-            dead_end(S, packets:validate_denide(Nick), "Duplicate nick");
-        Error ->
-            io:format("[NC] Error: ~p~n", [Error]),
-            dead_end(S, packets:validate_denide(Nick), "Clients pool failure")
-    end.
+    true = clients_pool:add(self(), Nick),
+    put(nick, Nick),
+    S ! {self(), packets:hello(Nick)},
+    loop(R, S).
 
 handle_my_info(R, S, initialized) ->
     S ! {self(), packets:hub_name()},
@@ -121,10 +108,3 @@ handle_my_info(R, S, initialized) ->
     loop(R, S);
 handle_my_info(R, S, _) ->
     loop(R, S).
-
-dead_end(Sender, Packet, Message) ->
-    clients_pool:delete(get(nick)),
-    io:format("[NC] ~s~n", [Message]),
-    Sender ! {self(), Packet},
-    Sender ! {self(), die},
-    dead.
