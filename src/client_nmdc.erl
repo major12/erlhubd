@@ -29,36 +29,28 @@ loop(Receiver, Sender) ->
 process(Receiver, Sender, <<"$", Data/binary>>) ->
     io:format("[process] Match control message. ~n"),
     parse(Receiver, Sender, [], Data);
-process(Receiver, Sender, Data) ->
+process(Receiver, Sender, <<"<", Data/binary>>) ->
     io:format("[process] Match chat message. ~n"),
-    parse_chat(Receiver, Sender, [], Data).
+    parse_chat(Receiver, Sender, [], Data);
+process(Receiver, Sender, _) ->
+    io:format("[process] Bad message. Disconnect? ~n"),
+    loop(Receiver, Sender).
 
-
-% will be great to rename from "parse" to "parse_WHAT"
 parse(Receiver, Sender, Opcode, <<>>) ->
     handle(Receiver, Sender, list_to_atom(lists:reverse(Opcode)), <<>>);
 parse(Receiver, Sender, Opcode, <<" ", Data/binary>>) ->
     handle(Receiver, Sender, list_to_atom(lists:reverse(Opcode)), Data);
 parse(Receiver, Sender, Opcode, <<B:8, Data/binary>>) ->
     parse(Receiver, Sender, [B|Opcode], Data).
-% ----------------------------------------------------
 
-parse_chat(R, S, [], <<>>) ->
-    io:format("[parse_chat] Empty message (maybe keepalive). ~n"),
-    handle_chat(R, S, [], <<>>);
-parse_chat(R, S, SenderNick, <<>>) ->
-    handle_chat(R, S, lists:reverse(SenderNick), <<>>);
-parse_chat(R, S, SenderNick, <<" ", MessageData/binary>>) ->
-    handle_chat(R, S, lists:reverse(SenderNick), MessageData);
-parse_chat(R, S, SenderNick, <<B:8, MessageData/binary>>) ->
-    parse_chat(R, S, [B|SenderNick], MessageData).
+parse_chat(R, S, _, <<>>) ->
+    io:format("[parse_chat] Bad or empty message. Disconnect?~n"),
+    loop(R, S);
+parse_chat(R, S, Nick, <<"> ", MessageData/binary>>) ->
+    handle_chat(R, S, lists:reverse(Nick), MessageData);
+parse_chat(R, S, Nick, <<B:8, MessageData/binary>>) ->
+    parse_chat(R, S, [B|Nick], MessageData).
 
-% try   parse_chat(R, S, [SenderNick|B], MessageData)
-% 		io:format("~p~n",[SenderNick]) 
-% you'll see maaany neested lists
-
-
-% and there too, handle what ?  ;-)
 handle(R, S, 'Key', Rest) ->
     put(ckey, Rest),
     loop(R, S);
