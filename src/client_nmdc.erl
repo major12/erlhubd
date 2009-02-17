@@ -1,12 +1,14 @@
 -module(client_nmdc).
 -export([init/2]).
+-import(lists, [reverse/1]).
 
 -record(nmdc, { state = initialized,
                 receiver, sender,
                 lock, skey, ckey,
                 version, my_info, 
                 nick,
-                role = regular }).
+                role = regular,
+                supports = []}).
 
 init(Socket, Buffer) ->
     io:format("[NC] NMDC initializing~n"),
@@ -57,10 +59,13 @@ parse_chat(State, Nick, <<B:8, MessageData/binary>>) ->
 
 handle(State, 'Key', Rest) ->
     loop(State#nmdc{ckey = Rest});
+
 handle(State, 'ValidateNick', Rest) ->
     handle_nick(State, Rest);
+
 handle(State, 'Version', Rest) ->
     loop(State#nmdc{version = Rest});
+
 handle(#nmdc{sender = S} = State, 'GetNickList', _) ->
     io:format("[NC] Nick list requested~n"),
     Self = self(),
@@ -68,6 +73,7 @@ handle(#nmdc{sender = S} = State, 'GetNickList', _) ->
     S ! {Self, packets:nick_list(clients_pool:clients(all))},
     ok = clients_pool:foreach(fun(E) -> S ! {Self, packets:my_info(E)}, ok end),
     loop(State);
+
 handle(#nmdc{nick = Nick} = State, 'MyINFO', Data) ->
     NickBin = list_to_binary(Nick),
     Size = size(NickBin),
@@ -76,12 +82,18 @@ handle(#nmdc{nick = Nick} = State, 'MyINFO', Data) ->
     ok = clients_pool:broadcast({packet, packets:my_info(Nick, MyInfo)}),
     io:format("[NC] MyINFO: ~s~n", [MyInfo]),
     handle_my_info(State#nmdc{my_info = MyInfo});
+
+handle(State, 'Supports', Rest) ->
+    handle_supports(State, Rest);
+
 handle(State, O, D) ->
     io:format("[NC] Unhandled control message $~s ~s~n", [O, binary_to_list(D)]),
     loop(State).
 
-handle_chat(State, Nick, Message) ->
-    io:format("[NC] Chat message from ~s: ~s~n",[Nick, Message]),
+handle_chat(#nmdc{nick = Nick} = State, Nick, Message) ->
+    NickBin = list_to_binary(Nick),
+    ok = clients_pool:broadcast({packet, <<"<", NickBin/binary, "> ", Message/binary>>}),
+    io:format("[NC] Chat ~s: ~s~n",[Nick, Message]),
     loop(State).
 
 create_lock() ->
@@ -109,3 +121,18 @@ handle_my_info(#nmdc{sender = S, state = initialized} = State) ->
     loop(State#nmdc{state = logged_in});
 handle_my_info(State) ->
     loop(State).
+
+handle_supports(State, Bin) when is_binary(Bin) ->
+    handle_supports(State, Bin, [], "");
+handle_supports(State, List) when is_list(List) ->
+    io:format("[NC] Supports: ~p~n", [List]),
+    loop(State#nmdc{supports = List}).
+
+handle_supports(State, <<>>, List, "") ->
+    handle_supports(State, List);
+handle_supports(State, <<>>, List, Option) ->
+    handle_supports(State, [list_to_atom(reverse(Option))|List]);
+handle_supports(State, <<" ", Bin/binary>>, List, Option) ->
+    handle_supports(State, Bin, [list_to_atom(reverse(Option))|List], "");
+handle_supports(State, <<B:8, Bin/binary>>, List, Option) ->
+    handle_supports(State, Bin, List, [B|Option]).
