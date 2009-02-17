@@ -84,7 +84,9 @@ handle(#nmdc{nick = Nick} = State, 'MyINFO', Data) ->
     handle_my_info(State#nmdc{my_info = MyInfo});
 
 handle(State, 'Supports', Rest) ->
-    handle_supports(State, Rest);
+    Supports = lists:map(fun(E) -> list_to_atom(E) end, split(Rest)),
+    io:format("[NC] Supports ~p~n", [Supports]),
+    loop(State#nmdc{supports = Supports});
 
 handle(State, O, D) ->
     io:format("[NC] Unhandled control message $~s ~s~n", [O, binary_to_list(D)]),
@@ -122,17 +124,16 @@ handle_my_info(#nmdc{sender = S, state = initialized} = State) ->
 handle_my_info(State) ->
     loop(State).
 
-handle_supports(State, Bin) when is_binary(Bin) ->
-    handle_supports(State, Bin, [], "");
-handle_supports(State, List) when is_list(List) ->
-    io:format("[NC] Supports: ~p~n", [List]),
-    loop(State#nmdc{supports = List}).
+split(Binary) ->
+    split(Binary, [], "").
 
-handle_supports(State, <<>>, List, "") ->
-    handle_supports(State, List);
-handle_supports(State, <<>>, List, Option) ->
-    handle_supports(State, [list_to_atom(reverse(Option))|List]);
-handle_supports(State, <<" ", Bin/binary>>, List, Option) ->
-    handle_supports(State, Bin, [list_to_atom(reverse(Option))|List], "");
-handle_supports(State, <<B:8, Bin/binary>>, List, Option) ->
-    handle_supports(State, Bin, List, [B|Option]).
+split(<<>>, List, "") ->
+    List;
+split(<<>>, List, Option) ->
+    [reverse(Option)|List];
+split(<<" ", Bin/binary>>, List, "") ->
+    split(Bin, List, "");
+split(<<" ", Bin/binary>>, List, Option) ->
+    split(Bin, [reverse(Option)|List], "");
+split(<<B:8, Bin/binary>>, List, Option) ->
+    split(Bin, List, [B|Option]).
