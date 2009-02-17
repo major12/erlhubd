@@ -75,13 +75,17 @@ handle(#nmdc{sender = S} = State, 'GetNickList', _) ->
     loop(State);
 
 handle(#nmdc{nick = Nick} = State, 'MyINFO', Data) ->
-    NickBin = list_to_binary(Nick),
-    Size = size(NickBin),
-    <<"$ALL ", NickBin:Size/bytes, " ", MyInfo/bytes>> = Data,
+    ["$ALL", Nick | MyInfoList] = split(Data),
+    MyInfo = list_to_binary(join(MyInfoList)),
     ok = clients_pool:update(Nick, my_info, MyInfo),
     ok = clients_pool:broadcast({packet, packets:my_info(Nick, MyInfo)}),
     io:format("[NC] MyINFO: ~s~n", [MyInfo]),
     handle_my_info(State#nmdc{my_info = MyInfo});
+
+handle(#nmdc{nick = Nick} = State, 'GetINFO', Data) ->
+    [SomeNick, Nick] = split(Data),
+    io:format("[NC] GetINFO: ~s~n", [SomeNick]),
+    loop(State);
 
 handle(State, 'Supports', Rest) ->
     Supports = lists:map(fun(E) -> list_to_atom(E) end, split(Rest)),
@@ -128,12 +132,22 @@ split(Binary) ->
     split(Binary, [], "").
 
 split(<<>>, List, "") ->
-    List;
+    reverse(List);
 split(<<>>, List, Option) ->
-    [reverse(Option)|List];
+    reverse([reverse(Option)|List]);
 split(<<" ", Bin/binary>>, List, "") ->
     split(Bin, List, "");
 split(<<" ", Bin/binary>>, List, Option) ->
     split(Bin, [reverse(Option)|List], "");
 split(<<B:8, Bin/binary>>, List, Option) ->
     split(Bin, List, [B|Option]).
+
+join([]) ->
+    [];
+join([Head|Tail]) ->
+    join(Tail, Head).
+
+join([], Result) ->
+    Result;
+join([Head|Tail], Result) ->
+    join(Tail, Result ++ Head).
