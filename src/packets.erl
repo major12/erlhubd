@@ -4,7 +4,7 @@
 -include("records.hrl").
 
 lock(Lock, Key) ->
-    <<"$Lock ", Lock/bytes, " Pk=", Key/bytes, "|">>.
+    <<"$Lock EXTENDEDPROTOCOL", Lock/bytes, " Pk=", Key/bytes, "|">>.
 
 validate_denide(Nick) ->
     NickBin = list_to_binary(Nick),
