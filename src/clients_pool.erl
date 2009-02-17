@@ -1,6 +1,6 @@
 -module(clients_pool).
 -export([start/0, init/0,
-         add/2, update/3, delete/1, 
+         add/2, update/3, delete/1, get/1,
          broadcast/1, foreach/1, clients/1]).
 
 -include("records.hrl").
@@ -77,6 +77,11 @@ loop(Storage) ->
                               end, [], Storage),
             From ! {self(), clients, Reply},
             loop(Storage);
+
+        {From, get, Nick} ->
+            Reply = ets:lookup(Storage, Nick),
+            From ! {self(), get, Reply},
+            loop(Storage);
         
         {'EXIT', Pid, Reason} ->
             case ets:match(Storage, {client, Pid, '$1', '_'}) of
@@ -107,6 +112,9 @@ broadcast(Data) ->
 
 clients(Roles) ->
     rpc(clients, Roles).
+
+get(Nick) ->
+    rpc(get, Nick).
 
 rpc(Action, Params) ->
     Pid = whereis(?MODULE),
