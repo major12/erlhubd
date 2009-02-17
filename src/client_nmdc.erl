@@ -71,7 +71,6 @@ handle(#nmdc{sender = S} = State, 'GetNickList', _) ->
     Self = self(),
     S ! {Self, packets:op_list(clients_pool:clients([op, chief, admin, master]))},
     S ! {Self, packets:nick_list(clients_pool:clients(all))},
-    ok = clients_pool:foreach(fun(E) -> S ! {Self, packets:my_info(E)}, ok end),
     loop(State);
 
 handle(#nmdc{nick = Nick} = State, 'MyINFO', Data) ->
@@ -82,9 +81,10 @@ handle(#nmdc{nick = Nick} = State, 'MyINFO', Data) ->
     io:format("[NC] MyINFO: ~s~n", [MyInfo]),
     handle_my_info(State#nmdc{my_info = MyInfo});
 
-handle(#nmdc{nick = Nick} = State, 'GetINFO', Data) ->
+handle(#nmdc{sender = S, nick = Nick} = State, 'GetINFO', Data) ->
     [SomeNick, Nick] = split(Data),
-    io:format("[NC] GetINFO: ~s~n", [SomeNick]),
+    [SomeClient] = clients_pool:get(SomeNick),
+    S ! {self(), packets:my_info(SomeClient)},
     loop(State);
 
 handle(State, 'Supports', Rest) ->
