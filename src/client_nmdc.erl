@@ -92,7 +92,7 @@ handle(State, O, D) ->
 
 handle_chat(#nmdc{nick = Nick} = State, Nick, Message) ->
     NickBin = list_to_binary(Nick),
-    ok = clients_pool:broadcast({packet, <<"<", NickBin/binary, "> ", Message/binary>>}),
+    ok = clients_pool:broadcast({packet, <<"<", NickBin/binary, "> ", Message/binary, "|">>}),
     io:format("[NC] Chat ~s: ~s~n",[Nick, Message]),
     loop(State).
 
