@@ -1,6 +1,8 @@
 -module(client_nmdc).
--export([init/2]).
--import(lists, [reverse/1]).
+-export([init/2, receiver/4]).
+
+-import(helper, [read_nick/1, read_ip/1,
+                 split/1, join/1]).
 
 -record(nmdc, { state = initialized,
                 receiver, sender,
@@ -12,7 +14,7 @@
 
 init(Socket, Buffer) ->
     io:format("[NC] NMDC initializing~n"),
-    R = spawn_link(client, receiver, [Socket, self(), $|, Buffer]),
+    R = spawn_link(?MODULE, receiver, [Socket, self(), $|, Buffer]),
     S = spawn_link(client, sender, [Socket, self()]),
     State = #nmdc{ lock     = create_lock(),
                    skey     = create_key(),
@@ -128,26 +130,34 @@ handle_my_info(#nmdc{sender = S, state = initialized} = State) ->
 handle_my_info(State) ->
     loop(State).
 
-split(Binary) ->
-    split(Binary, [], "").
+receiver(Socket, Client, Splitter, Buffer) ->
+    {ok, Data} = gen_tcp:recv(Socket, 0),
+    Next = send_messages(Client, <<Buffer/binary, Data/binary>>, Splitter),
+    receiver(Socket, Client, Splitter, Next).
 
-split(<<>>, List, "") ->
-    reverse(List);
-split(<<>>, List, Option) ->
-    reverse([reverse(Option)|List]);
-split(<<" ", Bin/binary>>, List, "") ->
-    split(Bin, List, "");
-split(<<" ", Bin/binary>>, List, Option) ->
-    split(Bin, [reverse(Option)|List], "");
-split(<<B:8, Bin/binary>>, List, Option) ->
-    split(Bin, List, [B|Option]).
+send_messages(Client, Binary, Splitter) ->
+    send_messages(Client, <<>>, Splitter, Binary).
 
-join([]) ->
-    [];
-join([Head|Tail]) ->
-    join(Tail, Head).
+send_messages(Client, <<>>, Splitter, <<"$ConnectToMe ", Data/binary>>) ->
+    {Ctm, Data} = ctm_extract(Data),
+    Client ! {self(), <<(list_to_binary("$ConnectToMe ")), Ctm>>},
+    send_messages(Client, <<>>, Splitter, Data);
+send_messages(Client, First, Splitter, <<Splitter, Second/binary>>) ->
+    Client ! {self(), First},
+    send_messages(Client, <<>>, Splitter, Second);
+send_messages(_, First, _, <<>>) ->
+    First;
+send_messages(Client, First, Splitter, <<B:8, Second/binary>>) ->
+    send_messages(Client, <<First/binary, B:8>>, Splitter, Second).
 
-join([], Result) ->
-    Result;
-join([Head|Tail], Result) ->
-    join(Tail, Result ++ Head).
+ctm_extract(Data) ->
+    {ok, Nick, Rest1} = read_nick(Data),
+    case (catch read_ip(Rest1)) of
+        {ok, Ip, Rest2} ->
+            {join([Nick, Ip]), Rest2};
+
+        _ ->
+            {ok, Nick2, Rest2} = read_nick(Rest1),
+            {ok, Ip, Rest3} = read_ip(Rest2),
+            {join([Nick, Nick2, Ip]), Rest3}
+    end.
