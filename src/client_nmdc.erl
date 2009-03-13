@@ -94,6 +94,11 @@ handle(State, 'Supports', Rest) ->
     io:format("[NC] Supports ~p~n", [Supports]),
     loop(State#nmdc{supports = Supports});
 
+handle(#nmdc{sender = S} = State, 'ConnectToMe', Data) ->
+    S ! {self(), packets:ctm(Data)},
+    io:format("[NC] Connect to me ~s~n", [Data]),
+    loop(State);
+
 handle(State, O, D) ->
     io:format("[NC] Unhandled control message $~s ~s~n", [O, binary_to_list(D)]),
     loop(State).

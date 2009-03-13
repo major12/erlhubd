@@ -38,6 +38,9 @@ op_list(List) ->
 nick_list(List) ->
     list(List, <<"$NickList ">>).
 
+ctm(Data) ->
+    <<"$ConnectToMe ", Data/binary>>.
+
 list([], Packet) ->
     <<Packet/binary, "$$|">>;
 list([#client{nick = Nick}], Packet) ->
