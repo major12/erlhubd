@@ -139,9 +139,10 @@ send_messages(Client, Binary, Splitter) ->
     send_messages(Client, <<>>, Splitter, Binary).
 
 send_messages(Client, <<>>, Splitter, <<"$ConnectToMe ", Data/binary>>) ->
-    {Ctm, Data} = ctm_extract(Data),
-    Client ! {self(), <<(list_to_binary("$ConnectToMe ")), Ctm>>},
-    send_messages(Client, <<>>, Splitter, Data);
+    {ok, Ctm, Rest} = ctm_extract(Data),
+    Client ! {self(), <<(list_to_binary("$ConnectToMe "))/binary,
+                        (list_to_binary(Ctm))/binary>>},
+    send_messages(Client, <<>>, Splitter, Rest);
 send_messages(Client, First, Splitter, <<Splitter, Second/binary>>) ->
     Client ! {self(), First},
     send_messages(Client, <<>>, Splitter, Second);
@@ -154,10 +155,9 @@ ctm_extract(Data) ->
     {ok, Nick, Rest1} = read_nick(Data),
     case (catch read_ip(Rest1)) of
         {ok, Ip, Rest2} ->
-            {join([Nick, Ip]), Rest2};
-
+            {ok, join([Nick, " ", Ip]), Rest2};
         _ ->
             {ok, Nick2, Rest2} = read_nick(Rest1),
             {ok, Ip, Rest3} = read_ip(Rest2),
-            {join([Nick, Nick2, Ip]), Rest3}
+            {ok, join([Nick, " ", Nick2, " ", Ip]), Rest3}
     end.
