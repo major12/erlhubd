@@ -4,13 +4,7 @@
 -import(helper, [read_nick/1, read_ip/1,
                  split/1, join/1]).
 
--record(nmdc, { state = initialized,
-                receiver, sender,
-                lock, skey, ckey,
-                version, my_info, 
-                nick,
-                role = regular,
-                supports = []}).
+-include("records.hrl").
 
 init(Socket, Buffer) ->
     io:format("[NC] NMDC initializing~n"),
@@ -94,9 +88,11 @@ handle(State, 'Supports', Rest) ->
     io:format("[NC] Supports ~p~n", [Supports]),
     loop(State#nmdc{supports = Supports});
 
-handle(#nmdc{sender = S} = State, 'ConnectToMe', Data) ->
-    S ! {self(), packets:ctm(Data)},
-    io:format("[NC] Connect to me ~s~n", [Data]),
+handle(#nmdc{nick = MyNick} = State, 'ConnectToMe', Data) ->
+    [Nick, Ip] = binary_to_term(Data),
+    [C] = clients_pool:get(Nick),
+    C#client.pid ! {packet, packets:ctm(list_to_binary(MyNick ++ " " ++ Ip))},
+    io:format("[NC] Connect to me ~s ~s~n", [Nick, Ip]),
     loop(State);
 
 handle(State, O, D) ->
@@ -146,7 +142,7 @@ send_messages(Client, Binary, Splitter) ->
 send_messages(Client, <<>>, Splitter, <<"$ConnectToMe ", Data/binary>>) ->
     {ok, Ctm, Rest} = ctm_extract(Data),
     Client ! {self(), <<(list_to_binary("$ConnectToMe "))/binary,
-                        (list_to_binary(Ctm))/binary>>},
+                        (term_to_binary(Ctm))/binary>>},
     send_messages(Client, <<>>, Splitter, Rest);
 send_messages(Client, First, Splitter, <<Splitter, Second/binary>>) ->
     Client ! {self(), First},
@@ -160,9 +156,9 @@ ctm_extract(Data) ->
     {ok, Nick, Rest1} = read_nick(Data),
     case (catch read_ip(Rest1)) of
         {ok, Ip, Rest2} ->
-            {ok, join([Nick, " ", Ip]), Rest2};
+            {ok, [Nick, Ip], Rest2};
         _ ->
             {ok, Nick2, Rest2} = read_nick(Rest1),
             {ok, Ip, Rest3} = read_ip(Rest2),
-            {ok, join([Nick, " ", Nick2, " ", Ip]), Rest3}
+            {ok, [Nick2, Ip], Rest3}
     end.
