@@ -8,7 +8,7 @@
 
 init(Socket, Buffer) ->
     io:format("[NC] NMDC initializing~n"),
-    R = spawn_link(?MODULE, receiver, [Socket, self(), $|, Buffer]),
+    R = spawn_link(client, receiver, [Socket, self(), $|, Buffer]),
     S = spawn_link(client, sender, [Socket, self()]),
     State = #nmdc{ lock     = create_lock(),
                    skey     = create_key(),
@@ -130,35 +130,3 @@ handle_my_info(#nmdc{sender = S, state = initialized} = State) ->
     loop(State#nmdc{state = logged_in});
 handle_my_info(State) ->
     loop(State).
-
-receiver(Socket, Client, Splitter, Buffer) ->
-    {ok, Data} = gen_tcp:recv(Socket, 0),
-    Next = send_messages(Client, <<Buffer/binary, Data/binary>>, Splitter),
-    receiver(Socket, Client, Splitter, Next).
-
-send_messages(Client, Binary, Splitter) ->
-    send_messages(Client, <<>>, Splitter, Binary).
-
-send_messages(Client, <<>>, Splitter, <<"$ConnectToMe ", Data/binary>>) ->
-    {ok, Ctm, Rest} = ctm_extract(Data),
-    Client ! {self(), <<(list_to_binary("$ConnectToMe "))/binary,
-                        (term_to_binary(Ctm))/binary>>},
-    send_messages(Client, <<>>, Splitter, Rest);
-send_messages(Client, First, Splitter, <<Splitter, Second/binary>>) ->
-    Client ! {self(), First},
-    send_messages(Client, <<>>, Splitter, Second);
-send_messages(_, First, _, <<>>) ->
-    First;
-send_messages(Client, First, Splitter, <<B:8, Second/binary>>) ->
-    send_messages(Client, <<First/binary, B:8>>, Splitter, Second).
-
-ctm_extract(Data) ->
-    {ok, Nick, Rest1} = read_nick(Data),
-    case (catch read_ip(Rest1)) of
-        {ok, Ip, Rest2} ->
-            {ok, [Nick, Ip], Rest2};
-        _ ->
-            {ok, Nick2, Rest2} = read_nick(Rest1),
-            {ok, Ip, Rest3} = read_ip(Rest2),
-            {ok, [Nick2, Ip], Rest3}
-    end.
