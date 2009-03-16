@@ -89,7 +89,7 @@ handle(State, 'Supports', Rest) ->
     loop(State#nmdc{supports = Supports});
 
 handle(#nmdc{nick = MyNick} = State, 'ConnectToMe', Data) ->
-    [Nick, Ip] = binary_to_term(Data),
+    {ok, [Nick, Ip]} = ctm_extract(Data),
     [C] = clients_pool:get(Nick),
     C#client.pid ! {packet, packets:ctm(list_to_binary(MyNick ++ " " ++ Ip))},
     io:format("[NC] Connect to me ~s ~s~n", [Nick, Ip]),
@@ -130,3 +130,14 @@ handle_my_info(#nmdc{sender = S, state = initialized} = State) ->
     loop(State#nmdc{state = logged_in});
 handle_my_info(State) ->
     loop(State).
+
+ctm_extract(Data) ->
+    {ok, Nick, Rest1} = read_nick(Data),
+    case (catch read_ip(Rest1)) of
+        {ok, Ip, <<>>} ->
+            {ok, [Nick, Ip]};
+        _ ->
+            {ok, Nick2, Rest2} = read_nick(Rest1),
+            {ok, Ip, <<>>} = read_ip(Rest2),
+            {ok, [Nick2, Ip]}
+    end.

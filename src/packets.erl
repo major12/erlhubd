@@ -39,7 +39,7 @@ nick_list(List) ->
     list(List, <<"$NickList ">>).
 
 ctm(Data) ->
-    <<"$ConnectToMe ", Data/binary>>.
+    <<"$ConnectToMe ", Data/binary, "|">>.
 
 list([], Packet) ->
     <<Packet/binary, "$$|">>;
