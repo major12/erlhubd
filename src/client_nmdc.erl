@@ -1,5 +1,5 @@
 -module(client_nmdc).
--export([init/2, receiver/4]).
+-export([init/2]).
 
 -import(helper, [read_nick/1, read_ip/1,
                  split/1, join/1]).
