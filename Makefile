@@ -1,7 +1,8 @@
-install:
-	scripts/install
+all: ebin
+	(cd src;$(MAKE))
 
-all: install
+ebin:
+	mkdir -p ebin
 
 clean:
-	rm -rf ./ebin/*
+	(cd src;$(MAKE) clean)

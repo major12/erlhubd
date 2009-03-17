@@ -1,6 +1,0 @@
-#!/bin/sh
-if [ ! -d "ebin" ]
-then
-	mkdir ebin
-fi
-erl -make

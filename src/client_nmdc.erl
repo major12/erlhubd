@@ -1,97 +1,109 @@
 -module(client_nmdc).
 -export([init/2]).
 
+-import(helper, [read_nick/1, read_ip/1,
+                 split/1, join/1]).
+
+-include("records.hrl").
+
 init(Socket, Buffer) ->
     io:format("[NC] NMDC initializing~n"),
-    Receiver = spawn_link(client, receiver, [Socket, self(), $|, Buffer]),
-    Sender = spawn_link(client, sender, [Socket, self()]),
-    put(state, initialized),
-    Lock = create_lock(),
-    put(lock, Lock),
-    Key = create_key(),
-    put(skey, Key),
-    Sender ! {self(), packets:lock(Lock, Key)},
-    loop(Receiver, Sender).
+    R = spawn_link(client, receiver, [Socket, self(), $|, Buffer]),
+    S = spawn_link(client, sender, [Socket, self()]),
+    State = #nmdc{ lock     = create_lock(),
+                   skey     = create_key(),
+                   receiver = R,
+                   sender   = S },
+    State#nmdc.sender ! { self(),
+                          packets:lock(State#nmdc.lock, State#nmdc.skey) },
+    loop(State).
 
-loop(Receiver, Sender) ->
+loop(#nmdc{receiver = R, sender = S} = State) ->
     receive
         {packet, Data} ->
-            Sender ! {self(), Data},
-            loop(Receiver, Sender);
-        {Receiver, Message} ->
-            io:format("[loop] Message: ~s~n", [binary_to_list(Message)]),
-            process(Receiver, Sender, Message);
+            S ! {self(), Data},
+            loop(State);
+        {R, Message} ->
+            process(State, Message);
         Any ->
             io:format("[NC] Unknown message: ~p~n", [Any]),
-            loop(Receiver, Sender)
+            loop(State)
     end.
 
-process(Receiver, Sender, <<"$", Data/binary>>) ->
-    io:format("[process] Match control message. ~n"),
-    parse(Receiver, Sender, [], Data);
-process(Receiver, Sender, Data) ->
-    io:format("[process] Match chat message. ~n"),
-    parse_chat(Receiver, Sender, [], Data).
+process(State, <<"$", Data/binary>>) ->
+    parse(State, [], Data);
+process(State, <<"<", Data/binary>>) ->
+    parse_chat(State, [], Data);
+process(State, Data) ->
+    io:format("[NC] Bad message: ~n  ~s~nDisconnect? ~n", [Data]),
+    loop(State).
 
+parse(State, Opcode, <<>>) ->
+    handle(State, list_to_atom(lists:reverse(Opcode)), <<>>);
+parse(State, Opcode, <<" ", Data/binary>>) ->
+    handle(State, list_to_atom(lists:reverse(Opcode)), Data);
+parse(State, Opcode, <<B:8, Data/binary>>) ->
+    parse(State, [B|Opcode], Data).
 
-% will be great to rename from "parse" to "parse_WHAT"
-parse(Receiver, Sender, Opcode, <<>>) ->
-    handle(Receiver, Sender, list_to_atom(lists:reverse(Opcode)), <<>>);
-parse(Receiver, Sender, Opcode, <<" ", Data/binary>>) ->
-    handle(Receiver, Sender, list_to_atom(lists:reverse(Opcode)), Data);
-parse(Receiver, Sender, Opcode, <<B:8, Data/binary>>) ->
-    parse(Receiver, Sender, [B|Opcode], Data).
-% ----------------------------------------------------
+parse_chat(State, _, <<>>) ->
+    io:format("[NC] Bad or empty chat message. Disconnect?~n"),
+    loop(State);
+parse_chat(State, Nick, <<"> ", MessageData/binary>>) ->
+    handle_chat(State, lists:reverse(Nick), MessageData);
+parse_chat(State, Nick, <<B:8, MessageData/binary>>) ->
+    parse_chat(State, [B|Nick], MessageData).
 
-parse_chat(R, S, [], <<>>) ->
-    io:format("[parse_chat] Empty message (maybe keepalive). ~n"),
-    handle_chat(R, S, [], <<>>);
-parse_chat(R, S, SenderNick, <<>>) ->
-    handle_chat(R, S, SenderNick, <<>>);
-parse_chat(R, S, SenderNick, <<" ", MessageData/binary>>) ->
-    handle_chat(R, S, SenderNick, MessageData);
-parse_chat(R, S, SenderNick, <<B:8, MessageData/binary>>) ->
-    parse_chat(R, S, SenderNick ++ [B], MessageData).
+handle(State, 'Key', Rest) ->
+    loop(State#nmdc{ckey = Rest});
 
-% try   parse_chat(R, S, [SenderNick|B], MessageData)
-% 		io:format("~p~n",[SenderNick]) 
-% you'll see maaany neested lists
+handle(State, 'ValidateNick', Rest) ->
+    handle_nick(State, Rest);
 
+handle(State, 'Version', Rest) ->
+    loop(State#nmdc{version = Rest});
 
-% and there too, handle what ?  ;-)
-handle(R, S, 'Key', Rest) ->
-    put(ckey, Rest),
-    loop(R, S);
-handle(R, S, 'ValidateNick', Rest) ->
-    handle_nick(R, S, Rest);
-handle(R, S, 'Version', Rest) ->
-    put(version, Rest),
-    loop(R, S);
-handle(R, S, 'GetNickList', _) ->
+handle(#nmdc{sender = S} = State, 'GetNickList', _) ->
     io:format("[NC] Nick list requested~n"),
     Self = self(),
-    ok = clients_pool:foreach(fun(E) -> S ! {Self, packets:my_info(E)}, ok end),
-    loop(R, S);
-handle(R, S, 'MyINFO', Data) ->
-    Nick = get(nick),
-    NickBin = list_to_binary(Nick),
-    Size = size(NickBin),
-    <<"$ALL ", NickBin:Size/bytes, " ", MyInfo/bytes>> = Data,
-    put(my_info, MyInfo),
+    S ! {Self, packets:op_list(clients_pool:clients([op, chief, admin, master]))},
+    S ! {Self, packets:nick_list(clients_pool:clients(all))},
+    loop(State);
+
+handle(#nmdc{nick = Nick} = State, 'MyINFO', Data) ->
+    ["$ALL", Nick | MyInfoList] = split(Data),
+    MyInfo = list_to_binary(join(MyInfoList)),
     ok = clients_pool:update(Nick, my_info, MyInfo),
     ok = clients_pool:broadcast({packet, packets:my_info(Nick, MyInfo)}),
     io:format("[NC] MyINFO: ~s~n", [MyInfo]),
-    handle_my_info(R, S, get(state));
-handle(R, S, O, D) ->
+    handle_my_info(State#nmdc{my_info = MyInfo});
+
+handle(#nmdc{sender = S, nick = Nick} = State, 'GetINFO', Data) ->
+    [SomeNick, Nick] = split(Data),
+    [SomeClient] = clients_pool:get(SomeNick),
+    S ! {self(), packets:my_info(SomeClient)},
+    loop(State);
+
+handle(State, 'Supports', Rest) ->
+    Supports = lists:map(fun(E) -> list_to_atom(E) end, split(Rest)),
+    io:format("[NC] Supports ~p~n", [Supports]),
+    loop(State#nmdc{supports = Supports});
+
+handle(#nmdc{nick = MyNick} = State, 'ConnectToMe', Data) ->
+    {ok, [Nick, Ip]} = ctm_extract(Data),
+    [C] = clients_pool:get(Nick),
+    C#client.pid ! {packet, packets:ctm(list_to_binary(MyNick ++ " " ++ Ip))},
+    io:format("[NC] Connect to me ~s ~s~n", [Nick, Ip]),
+    loop(State);
+
+handle(State, O, D) ->
     io:format("[NC] Unhandled control message $~s ~s~n", [O, binary_to_list(D)]),
-    loop(R, S).
-% ---------------------------------------------------
+    loop(State).
 
-handle_chat(R, S, SenderNick, MessageData) ->
-%	need to test is the SenderNick from message = out client nick     
-    io:format("[NC] Chat message sender=\"~s\" message=\"~s\"~n",[SenderNick, MessageData]),
-    loop(R,S).
-
+handle_chat(#nmdc{nick = Nick} = State, Nick, Message) ->
+    NickBin = list_to_binary(Nick),
+    ok = clients_pool:broadcast({packet, <<"<", NickBin/binary, "> ", Message/binary, "|">>}),
+    io:format("[NC] Chat ~s: ~s~n",[Nick, Message]),
+    loop(State).
 
 create_lock() ->
     create_bin(80 + random:uniform(54), <<>>).
@@ -104,33 +116,28 @@ create_bin(0, Binary) ->
 create_bin(Size, Binary) ->
     create_bin(Size - 1, <<Binary/binary, (97 + random:uniform(25)):8>>).
 
-handle_nick(_, S, <<>>) ->
-    dead_end(S, packets:validate_denide(<<>>), "Empty nick");
-handle_nick(R, S, NickBin) ->
+handle_nick(_, <<>>) ->
+    exit(empty_nick);
+handle_nick(#nmdc{sender = S} = State, NickBin) ->
     Nick = binary_to_list(NickBin),
-    case catch clients_pool:add(self(), Nick) of
-        true ->
-            put(nick, Nick),
-            io:format("[NC] Nick accepted~n"),
-            S ! {self(), packets:hello(Nick)},
-            loop(R, S);
-        false ->
-            dead_end(S, packets:validate_denide(Nick), "Duplicate nick");
-        Error ->
-            io:format("[NC] Error: ~p~n", [Error]),
-            dead_end(S, packets:validate_denide(Nick), "Clients pool failure")
-    end.
+    true = clients_pool:add(self(), Nick),
+    S ! {self(), packets:hello(Nick)},
+    loop(State#nmdc{nick = Nick}).
 
-handle_my_info(R, S, initialized) ->
+handle_my_info(#nmdc{sender = S, state = initialized} = State) ->
     S ! {self(), packets:hub_name()},
     S ! {self(), packets:message(bot:client(), bot:greeting())},
-    loop(R, S);
-handle_my_info(R, S, _) ->
-    loop(R, S).
+    loop(State#nmdc{state = logged_in});
+handle_my_info(State) ->
+    loop(State).
 
-dead_end(Sender, Packet, Message) ->
-    clients_pool:delete(get(nick)),
-    io:format("[NC] ~s~n", [Message]),
-    Sender ! {self(), Packet},
-    Sender ! {self(), die},
-    dead.
+ctm_extract(Data) ->
+    {ok, Nick, Rest1} = read_nick(Data),
+    case (catch read_ip(Rest1)) of
+        {ok, Ip, <<>>} ->
+            {ok, [Nick, Ip]};
+        _ ->
+            {ok, Nick2, Rest2} = read_nick(Rest1),
+            {ok, Ip, <<>>} = read_ip(Rest2),
+            {ok, [Nick2, Ip]}
+    end.

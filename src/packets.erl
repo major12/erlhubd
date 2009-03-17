@@ -4,7 +4,7 @@
 -include("records.hrl").
 
 lock(Lock, Key) ->
-    <<"$Lock ", Lock/bytes, " Pk=", Key/bytes, "|">>.
+    <<"$Lock EXTENDEDPROTOCOL", Lock/bytes, " Pk=", Key/bytes, "|">>.
 
 validate_denide(Nick) ->
     NickBin = list_to_binary(Nick),
@@ -31,3 +31,21 @@ message(#client{nick = Nick}, Message) ->
     NickBin    = list_to_binary(Nick),
     MessageBin = list_to_binary(Message),
     <<"<", NickBin/binary, "> ", MessageBin/binary, "|">>.
+
+op_list(List) ->
+    list(List, <<"$OpList ">>).
+
+nick_list(List) ->
+    list(List, <<"$NickList ">>).
+
+ctm(Data) ->
+    <<"$ConnectToMe ", Data/binary, "|">>.
+
+list([], Packet) ->
+    <<Packet/binary, "$$|">>;
+list([#client{nick = Nick}], Packet) ->
+    NickBin = list_to_binary(Nick),
+    list([], <<Packet/binary, NickBin/binary>>);
+list([#client{nick = Nick}|Rest], Packet) ->
+    NickBin = list_to_binary(Nick),
+    list(Rest, <<Packet/binary, NickBin/binary, "$$">>).
