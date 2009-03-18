@@ -41,6 +41,10 @@ nick_list(List) ->
 ctm(Data) ->
     <<"$ConnectToMe ", Data/binary, "|">>.
 
+% $To: ReceiverNick From: SenderNick $<SenderNick> Message
+to(NickFrom, NickTo, Message) ->
+    <<"$To: ", NickTo/binary, " From: ", NickFrom/binary, " $<", NickFrom/binary, "> ", Message/binary, "|">>.
+
 list([], Packet) ->
     <<Packet/binary, "$$|">>;
 list([#client{nick = Nick}], Packet) ->

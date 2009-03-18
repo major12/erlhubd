@@ -92,7 +92,15 @@ handle(#nmdc{nick = MyNick} = State, 'ConnectToMe', Data) ->
     {ok, [Nick, Ip]} = ctm_extract(Data),
     [C] = clients_pool:get(Nick),
     C#client.pid ! {packet, packets:ctm(list_to_binary(MyNick ++ " " ++ Ip))},
+	% hm, it was dirty...
     io:format("[NC] Connect to me ~s ~s~n", [Nick, Ip]),
+    loop(State);
+
+handle(#nmdc{nick = MyNick} = State, 'To:', Data) ->
+    {ok, [MyNick, Nick], Message} = to_extract(Data),
+    [C] = clients_pool:get(Nick),
+    C#client.pid ! {packet, packets:to(list_to_binary(MyNick),list_to_binary(Nick),Message)},
+    io:format("[NC] To ~s ~s ~s~n", [MyNick, Nick, Message]),
     loop(State);
 
 handle(State, O, D) ->
@@ -141,3 +149,12 @@ ctm_extract(Data) ->
             {ok, Ip, <<>>} = read_ip(Rest2),
             {ok, [Nick2, Ip]}
     end.
+
+to_extract(Data) ->
+	{ok, ReceiverNick1, Rest1} = read_nick(Data),
+	{ok, "From:", Rest2} = read_nick(Rest1),
+	{ok, SenderNick1, Rest3} = read_nick(Rest2),
+	{ok, SenderNick2, Message} = read_nick(Rest3),
+% check is '$<'.SenderNick1.'>'==SenderNick2 if connection is client-to-hub	
+	{ok, [SenderNick1, ReceiverNick1], Message}.
+	
