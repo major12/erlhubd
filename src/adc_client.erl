@@ -1,4 +1,4 @@
--module(client_adc).
+-module(adc_client).
 -export([init/2]).
 
 init(Socket, Buffer) ->

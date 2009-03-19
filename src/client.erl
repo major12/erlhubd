@@ -40,7 +40,7 @@ send_messages(Client, First, Splitter, <<B:8, Second/binary>>) ->
 guess_protocol(Socket) ->
     case gen_tcp:recv(Socket, 1, 200) of
         {ok, Data} ->
-            client_adc:init(Socket, Data);
+            adc_client:init(Socket, Data);
         _ ->
-            client_nmdc:init(Socket, <<>>)
+            nmdc_client:init(Socket, <<>>)
     end.

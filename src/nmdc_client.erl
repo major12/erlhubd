@@ -1,4 +1,4 @@
--module(client_nmdc).
+-module(nmdc_client).
 -export([init/2]).
 
 -import(helper, [read_nick/1, read_ip/1,
