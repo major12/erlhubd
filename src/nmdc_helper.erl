@@ -1,4 +1,4 @@
--module(helper).
+-module(nmdc_helper).
 -compile(export_all).
 
 -import(lists, [reverse/1]).
@@ -43,3 +43,33 @@ join([], Result) ->
     Result;
 join([Head|Tail], Result) ->
     join(Tail, Result ++ Head).
+
+ctm_extract(Data) ->
+    {ok, Nick, Rest1} = read_nick(Data),
+    case (catch read_ip(Rest1)) of
+        {ok, Ip, <<>>} ->
+            {ok, [Nick, Ip]};
+        _ ->
+            {ok, Nick2, Rest2} = read_nick(Rest1),
+            {ok, Ip, <<>>} = read_ip(Rest2),
+            {ok, [Nick2, Ip]}
+    end.
+
+to_extract(Data) ->
+    {ok, ReceiverNick1, Rest1} = read_nick(Data),
+    {ok, "From:", Rest2} = read_nick(Rest1),
+    {ok, SenderNick1, Rest3} = read_nick(Rest2),
+    {ok, SenderNick2, Message} = read_nick(Rest3),
+    SenderNick1 = "$<" ++ SenderNick2 ++ ">",
+    {ok, [SenderNick1, ReceiverNick1], Message}.
+
+create_lock() ->
+    create_bin(80 + random:uniform(54), <<>>).
+
+create_key() ->
+    create_bin(16, <<>>).
+
+create_bin(0, Binary) ->
+    Binary;
+create_bin(Size, Binary) ->
+    create_bin(Size - 1, <<Binary/binary, (97 + random:uniform(25)):8>>).
