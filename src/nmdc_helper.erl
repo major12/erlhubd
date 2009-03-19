@@ -60,7 +60,7 @@ to_extract(Data) ->
     {ok, "From:", Rest2} = read_nick(Rest1),
     {ok, SenderNick1, Rest3} = read_nick(Rest2),
     {ok, SenderNick2, Message} = read_nick(Rest3),
-    SenderNick1 = "$<" ++ SenderNick2 ++ ">",
+    SenderNick2 = "$<" ++ SenderNick1 ++ ">",
     {ok, [SenderNick1, ReceiverNick1], Message}.
 
 create_lock() ->
