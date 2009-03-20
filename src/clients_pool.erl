@@ -8,7 +8,7 @@
 start() ->
     case whereis(?MODULE) of
         undefined ->
-            Pid = spawn(?MODULE, init, []),
+            Pid = spawn_link(?MODULE, init, []),
             register(?MODULE, Pid),
             {ok, Pid};
         Pid ->

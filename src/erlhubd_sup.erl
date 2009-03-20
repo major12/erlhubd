@@ -23,6 +23,8 @@ upgrade() ->
     ok.
 
 init([]) ->
-    P = {erlhubd_server, {tcp_server, start, [erlhubd_server, 4111, {client, init}]},
-         permanent, 5000, worker, dynamic},
-    {ok, {{one_for_one, 10, 10}, [P]}}.
+    P = [{erlhubd_server, {tcp_server, start, [erlhubd_server, 4111, {client, init}]},
+          permanent, 5000, worker, dynamic},
+         {clients_pool, {clients_pool, start, []},
+          permanent, 5000, worker, dynamic}],
+    {ok, {{one_for_one, 10, 10}, P}}.
