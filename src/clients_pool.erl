@@ -1,132 +1,131 @@
 -module(clients_pool).
--export([start/0, init/0,
-         add/2, update/3, delete/1, get/1,
+-export([add/2, update/3, delete/1, get/1,
          broadcast/1, foreach/1, clients/1]).
 
 -include("records.hrl").
 
-start() ->
-    case whereis(?MODULE) of
-        undefined ->
-            Pid = spawn_link(?MODULE, init, []),
-            register(?MODULE, Pid),
-            {ok, Pid};
-        Pid ->
-            {ok, Pid}
-    end.
+-behavior(gen_server).
+-export([start/0, init/1, code_change/3, handle_call/3,
+         handle_cast/2, handle_info/2, terminate/2]).
 
-init() ->
+-record(server_state, {ets}).
+
+start() ->
+    gen_server:start_link({local, ?MODULE}, ?MODULE, #server_state{}, []).
+
+init(State) ->
     process_flag(trap_exit, true),
     Storage = ets:new(storage, [{keypos, 3}, private, set]),
-    loop(Storage).
+    {ok, State#server_state{ets = Storage}}.
 
-loop(Storage) ->
-    receive
-        {broadcast, Message} ->
-            ets:foldl(fun(#client{pid=P}, ok) ->
-                          P ! Message,
-                          ok
-                      end, ok, Storage),
-            loop(Storage);
-        {From, add, {Pid, Nick}} ->
-            Reply = ets:insert_new(Storage, #client{pid=Pid, nick=Nick}),
-            if Reply -> link(Pid); true -> ok end,
-            From ! {self(), add, Reply},
-            loop(Storage);
-        {From, foreach, Fun} ->
-            Reply = ets:foldl(fun(E, ok) -> catch Fun(E) end, ok, Storage),
-            From ! {self(), foreach, Reply},
-            loop(Storage);
-        {From, update, {Nick, Field, Value}} ->
-            case ets:lookup(Storage, Nick) of
-                [C] ->
-                    Reply = if
-                        C#client.pid =:= From ->
-                            Pos = index(Field, record_info(fields, client)) + 1,
-                            ets:update_element(Storage, Nick, {Pos, Value}),
-                            ok;
-                        true ->
-                            {error, no_access}
-                    end,
-                    From ! {self(), update, Reply},
-                    loop(Storage);
-                _ ->
-                    From ! {self(), update, {error, not_found}},
-                    loop(Storage)
-            end;
-        {From, delete, Nick} ->
-            Reply = ets:delete(Storage, Nick),
-            From ! {self(), delete, Reply},
-            loop(Storage);
 
-        % TODO: use role weight to select clients
-        {From, clients, all} ->
-            Reply = ets:foldl(fun(E, L) -> [E|L] end, [], Storage),
-            From ! {self(), clients, Reply},
-            loop(Storage);
-        {From, clients, Roles} ->
-            Reply = ets:foldl(fun(E, L) ->
-                                  #client{role = Role} = E,
-                                  Member = lists:member(Role, Roles),
-                                  if
-                                      Member ->
-                                          [E|L];
-                                      true ->
-                                          L
-                                  end
-                              end, [], Storage),
-            From ! {self(), clients, Reply},
-            loop(Storage);
+handle_cast({broadcast, Message}, #server_state{ets = Storage} = State) ->
+    ets:foldl(fun(#client{pid=P}, ok) ->
+                  P ! Message,
+                  ok
+              end, ok, Storage),
+    {noreply, State}.
 
-        {From, get, Nick} ->
-            Reply = ets:lookup(Storage, Nick),
-            From ! {self(), get, Reply},
-            loop(Storage);
-        
-        {'EXIT', Pid, Reason} ->
-            case ets:match(Storage, {client, Pid, '$1', '_'}) of
-                [[Nick]] ->
-                    ets:delete(Storage, Nick),
-                    io:format("[CP] ~s ~p died: ~p~n", [Nick, Pid, Reason]),
-                    loop(Storage);
-                _ ->
-                    io:format("[CP] ~p died: ~p~n", [Pid, Reason]),
-                    loop(Storage)
-            end
-    end.
+handle_call(stop, _Caller, #server_state{ets = Storage} = State) ->
+    ets:delete(Storage),
+    {stop, normal, stopped, State};
+
+
+handle_call({add, {Pid, Nick}}, _Caller, #server_state{ets = Storage} = State) ->
+    Reply = ets:insert_new(Storage, #client{pid=Pid, nick=Nick}),
+    if Reply -> link(Pid); true -> ok end,
+    {reply, Reply, State};
+
+
+handle_call({foreach, Fun}, _Caller, #server_state{ets = Storage} = State) ->
+    Reply = ets:foldl(fun(E, ok) -> catch Fun(E) end, ok, Storage),
+    {reply, Reply, State};
+
+
+handle_call({update, {Nick, Field, Value}}, {Pid, _}, #server_state{ets = Storage} = State) ->
+    case ets:lookup(Storage, Nick) of
+        [C] ->
+            Reply = if
+                C#client.pid =:= Pid ->
+                    Pos = index(Field, record_info(fields, client)) + 1,
+                    ets:update_element(Storage, Nick, {Pos, Value}),
+                    ok;
+                true ->
+                    {error, no_access}
+            end,
+            {reply, Reply, State};
+        _ ->
+            {reply, {error, not_found}, State}
+    end;
+
+
+handle_call({delete, Nick}, _Caller, #server_state{ets = Storage} = State) ->
+    Reply = ets:delete(Storage, Nick),
+    {reply, Reply, State};
+
+
+handle_call({clients, all}, _Caller, #server_state{ets = Storage} = State) ->
+    Reply = ets:foldl(fun(E, L) -> [E|L] end, [], Storage),
+    {reply, Reply, State};
+
+
+handle_call({clients, Roles}, _Caller, #server_state{ets = Storage} = State) ->
+    Reply = ets:foldl(fun(E, L) ->
+                          #client{role = Role} = E,
+                          Member = lists:member(Role, Roles),
+                          if
+                              Member ->
+                                  [E|L];
+                              true ->
+                                  L
+                          end
+                      end, [], Storage),
+    {reply, Reply, State};
+
+
+handle_call({get, Nick}, _Caller, #server_state{ets = Storage} = State) ->
+    Reply = ets:lookup(Storage, Nick),
+    {reply, Reply, State};
+
+handle_call(_Msg, _Caller, State) -> {noreply, State}.
+
+handle_info({'EXIT', Pid, {Reason, [{client, receiver, 4}]}},
+            #server_state{ets = Storage} = State) ->
+    case ets:match(Storage, {client, Pid, '$1', '_'}) of
+        [[Nick]] ->
+            ets:delete(Storage, Nick),
+            io:format("[NC] ~s ~p died: ~p~n", [Nick, Pid, Reason]);
+        _ ->
+            io:format("[NC] ~p died: ~p~n", [Pid, Reason])
+    end,
+    {noreply, State};
+
+handle_info(_Msg, Library) ->
+    {noreply, Library}.
+
+terminate(_Reason, _Library) -> ok.
+code_change(_OldVersion, Library, _Extra) -> {ok, Library}.
 
 add(Pid, Nick) ->
-    rpc(add, {Pid, Nick}).
+    gen_server:call(?MODULE, {add, {Pid, Nick}}).
 
 foreach(Fun) ->
-    rpc(foreach, Fun).
+    gen_server:call(?MODULE, {foreach, Fun}).
 
 update(Nick, Field, Value) ->
-    rpc(update, {Nick, Field, Value}).
+    gen_server:call(?MODULE, {update, {Nick, Field, Value}}).
 
 delete(Nick) ->
-    rpc(delete, Nick).
+    gen_server:call(?MODULE, {delete, Nick}).
 
 broadcast(Data) ->
-    send(broadcast, Data).
+    gen_server:cast(?MODULE, {broadcast, Data}).
 
 clients(Roles) ->
-    rpc(clients, Roles).
+    gen_server:call(?MODULE, {clients, Roles}).
 
 get(Nick) ->
-    rpc(get, Nick).
-
-rpc(Action, Params) ->
-    Pid = whereis(?MODULE),
-    Pid ! {self(), Action, Params},
-    receive
-        {Pid, Action, Reply} -> Reply
-    end.
-
-send(Action, Params) ->
-    Pid = whereis(?MODULE),
-    Pid ! {Action, Params},
-    ok.
+    gen_server:call(?MODULE, {get, Nick}).
 
 index(E, L) ->
     index(E, L, 1).

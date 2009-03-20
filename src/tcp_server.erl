@@ -10,7 +10,6 @@
 -record(server_state, {port, loop, ip=any, lsocket=null}).
 
 start(Name, Port, Loop) ->
-    io:format("Starting ~p on port ~p with callback ~p~n", [Name, Port, Loop]),
     State = #server_state{port = Port, loop = Loop},
     gen_server:start_link({local, Name}, ?MODULE, State, []).
 

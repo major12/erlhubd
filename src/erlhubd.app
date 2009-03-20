@@ -7,6 +7,6 @@
              clients_pool, helper,
              tcp_server]},
   {registered, []},
-  {mod, {erlhubd_app, []}},
+  {mod, {erlhubd, []}},
   {env, []},
   {applications, [kernel, stdlib]}]}.
